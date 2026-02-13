@@ -1,0 +1,526 @@
+#![warn(clippy::manual_pop_if)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::redundant_closure)]
+
+use std::collections::VecDeque;
+
+// ============================================================================
+// is_some_and Pattern Tests - Vec
+// ============================================================================
+
+fn is_some_and_pattern_positive() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    
+    // Should trigger lint - basic is_some_and pattern
+    if vec.last().is_some_and(|x| *x > 3) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // Should trigger lint - different condition
+    if vec.last().is_some_and(|y| *y == 5) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // Should trigger lint - complex predicate
+    if vec.last().is_some_and(|x| *x > 2 && *x < 10) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // TODO: Should trigger lint - method call on element (not triggering - might be considered side effect)
+    let mut vec_str = vec![String::from("hello"), String::from("world")];
+    if vec_str.last().is_some_and(|s| s.len() > 3) {
+        vec_str.pop().unwrap();
+    }
+}
+
+// ============================================================================
+// is_some_and Pattern Tests - VecDeque
+// ============================================================================
+
+fn is_some_and_pattern_vecdeque_back() {
+    let mut deque: VecDeque<i32> = VecDeque::from([1, 2, 3, 4, 5]);
+    
+    // Should trigger lint - basic is_some_and pattern with back
+    if deque.back().is_some_and(|x| *x > 3) {
+        //~^ manual_pop_if
+        deque.pop_back().unwrap();
+    }
+    
+    // Should trigger lint - different condition
+    if deque.back().is_some_and(|y| *y == 5) {
+        //~^ manual_pop_if
+        deque.pop_back().unwrap();
+    }
+}
+
+fn is_some_and_pattern_vecdeque_front() {
+    let mut deque: VecDeque<i32> = VecDeque::from([1, 2, 3, 4, 5]);
+    
+    // Should trigger lint - basic is_some_and pattern with front
+    if deque.front().is_some_and(|x| *x < 3) {
+        //~^ manual_pop_if
+        deque.pop_front().unwrap();
+    }
+    
+    // Should trigger lint - different condition
+    if deque.front().is_some_and(|y| *y == 1) {
+        //~^ manual_pop_if
+        deque.pop_front().unwrap();
+    }
+}
+
+fn is_some_and_pattern_negative() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    
+    // Should NOT trigger - different vectors
+    let mut vec2 = vec![6, 7, 8];
+    if vec.last().is_some_and(|x| *x > 3) {
+        vec2.pop().unwrap(); // Different vector
+    }
+    
+    // Should NOT trigger - non-Vec type
+    let mut opt = Some(42);
+    if opt.is_some_and(|x| x > 3) {
+        opt.take();
+    }
+    
+    // Should NOT trigger - value is used (bound to variable)
+    if vec.last().is_some_and(|x| *x > 3) {
+        let _val = vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - value is used (in expression)
+    if vec.last().is_some_and(|x| *x > 3) {
+        println!("{}", vec.pop().unwrap());
+    }
+    
+    // Should NOT trigger - value is returned from block
+    let _result = if vec.last().is_some_and(|x| *x > 3) {
+        vec.pop().unwrap()
+    } else {
+        0
+    };
+}
+
+
+// ============================================================================
+// if-let Pattern Tests
+// ============================================================================
+
+fn if_let_pattern_positive() {
+    let mut vec = vec![1, 2, 3];
+    
+    // TODO: Should trigger lint - basic if-let pattern (not yet implemented)
+    if let Some(x) = vec.last() {
+        if *x > 2 {
+            vec.pop().unwrap();
+        }
+    }
+    
+    // TODO: Should trigger lint - different condition (not yet implemented)
+    if let Some(y) = vec.last() {
+        if *y == 3 {
+            vec.pop().unwrap();
+        }
+    }
+    
+    // TODO: Should trigger lint - complex condition (not yet implemented)
+    if let Some(x) = vec.last() {
+        if *x > 1 && *x < 5 {
+            vec.pop().unwrap();
+        }
+    }
+}
+
+fn if_let_pattern_negative() {
+    let mut vec = vec![1, 2, 3];
+    
+    // Should NOT trigger - different vectors
+    let mut vec2 = vec![4, 5, 6];
+    if let Some(x) = vec.last() {
+        if *x > 2 {
+            vec2.pop().unwrap(); // Different vector
+        }
+    }
+    
+    // Should NOT trigger - intervening statements
+    if let Some(x) = vec.last() {
+        println!("Checking {}", x);
+        if *x > 2 {
+            vec.pop().unwrap();
+        }
+    }
+    
+    // Should NOT trigger - bound variable not used in condition
+    if let Some(_x) = vec.last() {
+        if vec.len() > 2 {
+            vec.pop().unwrap();
+        }
+    }
+    
+    // Should NOT trigger - value is used (bound to variable)
+    if let Some(x) = vec.last() {
+        if *x > 2 {
+            let _val = vec.pop().unwrap();
+        }
+    }
+    
+    // Should NOT trigger - value is returned from block
+    let _result = if let Some(x) = vec.last() {
+        if *x > 2 {
+            vec.pop().unwrap()
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+}
+
+
+// ============================================================================
+// map/unwrap_or Pattern Tests
+// ============================================================================
+
+fn map_unwrap_or_pattern_positive() {
+    let mut vec = vec![1, 2, 3];
+    
+    // Should trigger lint - basic map/unwrap_or pattern
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // Should trigger lint - different condition
+    if vec.last().map(|y| *y == 3).unwrap_or(false) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // Should trigger lint - complex predicate
+    if vec.last().map(|x| *x > 1 && *x < 5).unwrap_or(false) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+}
+
+fn map_unwrap_or_pattern_negative() {
+    let mut vec = vec![1, 2, 3];
+    
+    // Should NOT trigger - unwrap_or(true) instead of false
+    if vec.last().map(|x| *x > 2).unwrap_or(true) {
+        vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - different vectors
+    let mut vec2 = vec![4, 5, 6];
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        vec2.pop().unwrap(); // Different vector
+    }
+    
+    // Should NOT trigger - non-Vec type
+    let mut opt = Some(42);
+    if opt.map(|x| x > 2).unwrap_or(false) {
+        opt.take();
+    }
+    
+    // Should NOT trigger - map returns non-boolean
+    if vec.last().map(|x| x + 1).unwrap_or(0) > 2 {
+        vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - value is used (bound to variable)
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        let _val = vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - value is returned from block
+    let _result = if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        vec.pop().unwrap()
+    } else {
+        0
+    };
+}
+
+// ============================================================================
+// Edge Cases
+// ============================================================================
+
+fn edge_cases() {
+    // Empty vector - should still trigger (runtime behavior is same)
+    let mut empty_vec: Vec<i32> = vec![];
+    if empty_vec.last().is_some_and(|x| *x > 0) {
+        //~^ manual_pop_if
+        empty_vec.pop().unwrap();
+    }
+    
+    // TODO: Complex expressions in predicate - not triggering (has let binding, might be considered side effect)
+    let mut vec = vec![1, 2, 3, 4, 5];
+    if vec.last().is_some_and(|x| {
+        let doubled = *x * 2;
+        doubled > 6
+    }) {
+        vec.pop().unwrap();
+    }
+    
+    // TODO: Nested structures - not triggering (method call might be considered side effect)
+    let mut vec_of_vecs = vec![vec![1, 2], vec![3, 4], vec![5, 6]];
+    if vec_of_vecs.last().is_some_and(|v| v.len() > 1) {
+        vec_of_vecs.pop().unwrap();
+    }
+    
+    // Custom types
+    #[derive(Debug)]
+    struct Point { x: i32, y: i32 }
+    
+    let mut points = vec![Point { x: 1, y: 2 }, Point { x: 3, y: 4 }];
+    if points.last().is_some_and(|p| p.x > 2) {
+        //~^ manual_pop_if
+        points.pop().unwrap();
+    }
+    
+    // Multiple conditions with &&
+    if vec.last().is_some_and(|x| *x > 2 && *x < 10 && *x % 2 == 0) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // Multiple conditions with ||
+    if vec.last().is_some_and(|x| *x < 2 || *x > 10) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+}
+
+// ============================================================================
+// Safety Test Cases
+// ============================================================================
+
+fn safety_borrow_conflicts() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    
+    // Should NOT trigger - nested closure (potential borrow conflict)
+    if vec.last().is_some_and(|x| {
+        let closure = || *x > 3;
+        closure()
+    }) {
+        vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - mutable operation in predicate
+    let mut counter = 0;
+    if vec.last().is_some_and(|x| {
+        counter += 1;
+        *x > 3
+    }) {
+        vec.pop().unwrap();
+    }
+}
+
+fn safety_side_effects() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    let mut counter = 0;
+    
+    // Should NOT trigger - condition has side effects (mutation)
+    if vec.last().is_some_and(|x| {
+        counter += 1;
+        *x > 3
+    }) {
+        vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - condition has side effects (function call)
+    fn has_side_effect(x: &i32) -> bool {
+        println!("Checking {}", x);
+        *x > 3
+    }
+    
+    if vec.last().is_some_and(|x| has_side_effect(x)) {
+        vec.pop().unwrap();
+    }
+    
+    // Should trigger - simple comparison without side effects
+    if vec.last().is_some_and(|x| *x > 3) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - map with side effects in closure
+    if vec.last().map(|x| {
+        counter += 1;
+        *x > 3
+    }).unwrap_or(false) {
+        vec.pop().unwrap();
+    }
+}
+
+fn safety_value_usage() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    
+    // Should NOT trigger - value used in let binding
+    if vec.last().is_some_and(|x| *x > 3) {
+        let _value = vec.pop().unwrap();
+        println!("Popped: {}", _value);
+    }
+    
+    // Should NOT trigger - value used in expression
+    if vec.last().is_some_and(|x| *x > 3) {
+        println!("Popped: {}", vec.pop().unwrap());
+    }
+    
+    // Should NOT trigger - value returned from if expression
+    let _result = if vec.last().is_some_and(|x| *x > 3) {
+        vec.pop().unwrap()
+    } else {
+        0
+    };
+    
+    // Should NOT trigger - value used in arithmetic
+    if vec.last().is_some_and(|x| *x > 3) {
+        let _sum = vec.pop().unwrap() + 10;
+    }
+    
+    // Should trigger - value explicitly discarded with semicolon
+    if vec.last().is_some_and(|x| *x > 3) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+}
+
+// ============================================================================
+// Type Checking Test Cases
+// ============================================================================
+
+fn type_checking_non_vec() {
+    // Should NOT trigger - Option type, not Vec
+    let mut opt = Some(42);
+    if opt.is_some_and(|x| x > 3) {
+        opt.take();
+    }
+    
+    // Should NOT trigger - VecDeque type, not Vec
+    use std::collections::VecDeque;
+    let mut deque = VecDeque::from([1, 2, 3]);
+    if deque.back().is_some_and(|x| *x > 2) {
+        deque.pop_back();
+    }
+    
+    // Should NOT trigger - custom type with last() method
+    struct CustomCollection {
+        data: Vec<i32>,
+    }
+    
+    impl CustomCollection {
+        fn last(&self) -> Option<&i32> {
+            self.data.last()
+        }
+        
+        fn pop(&mut self) -> Option<i32> {
+            self.data.pop()
+        }
+    }
+    
+    let mut custom = CustomCollection { data: vec![1, 2, 3] };
+    if custom.last().is_some_and(|x| *x > 2) {
+        custom.pop().unwrap();
+    }
+}
+
+fn type_checking_non_boolean_returns() {
+    let mut vec = vec![1, 2, 3];
+    
+    // Should NOT trigger - map returns i32, not bool
+    if vec.last().map(|x| x + 1).unwrap_or(0) > 2 {
+        vec.pop().unwrap();
+    }
+    
+    // Should NOT trigger - map returns Option<i32>, not bool
+    if vec.last().map(|x| Some(*x)).is_some() {
+        vec.pop().unwrap();
+    }
+    
+    // Should trigger - map returns bool
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+}
+
+// ============================================================================
+// Main function
+// ============================================================================
+
+fn main() {
+    is_some_and_pattern_positive();
+    is_some_and_pattern_negative();
+    if_let_pattern_positive();
+    if_let_pattern_negative();
+    map_unwrap_or_pattern_positive();
+    map_unwrap_or_pattern_negative();
+    edge_cases();
+    safety_borrow_conflicts();
+    safety_side_effects();
+    safety_value_usage();
+    type_checking_non_vec();
+    type_checking_non_boolean_returns();
+}
+
+// ============================================================================
+// MSRV Test Cases
+// ============================================================================
+
+#[clippy::msrv = "1.94.0"]
+fn msrv_too_low_vec() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    
+    // Should NOT trigger - MSRV is 1.94.0, but Vec::pop_if requires 1.95.0
+    if vec.last().is_some_and(|x| *x > 3) {
+        vec.pop().unwrap();
+    }
+}
+
+#[clippy::msrv = "1.95.0"]
+fn msrv_met_vec() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    
+    // Should trigger - MSRV is 1.95.0, Vec::pop_if is available
+    if vec.last().is_some_and(|x| *x > 3) {
+        //~^ manual_pop_if
+        vec.pop().unwrap();
+    }
+}
+
+#[clippy::msrv = "1.94.0"]
+fn msrv_too_low_vecdeque() {
+    let mut deque: VecDeque<i32> = VecDeque::from([1, 2, 3, 4, 5]);
+    
+    // Should NOT trigger - MSRV is 1.94.0, but VecDeque::pop_back_if requires 1.95.0
+    if deque.back().is_some_and(|x| *x > 3) {
+        deque.pop_back().unwrap();
+    }
+    
+    // Should NOT trigger - MSRV is 1.94.0, but VecDeque::pop_front_if requires 1.95.0
+    if deque.front().is_some_and(|x| *x < 3) {
+        deque.pop_front().unwrap();
+    }
+}
+
+#[clippy::msrv = "1.95.0"]
+fn msrv_met_vecdeque() {
+    let mut deque: VecDeque<i32> = VecDeque::from([1, 2, 3, 4, 5]);
+    
+    // Should trigger - MSRV is 1.95.0, VecDeque::pop_back_if is available
+    if deque.back().is_some_and(|x| *x > 3) {
+        //~^ manual_pop_if
+        deque.pop_back().unwrap();
+    }
+    
+    // Should trigger - MSRV is 1.95.0, VecDeque::pop_front_if is available
+    if deque.front().is_some_and(|x| *x < 3) {
+        //~^ manual_pop_if
+        deque.pop_front().unwrap();
+    }
+}

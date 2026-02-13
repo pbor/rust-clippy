@@ -23,6 +23,7 @@ macro_rules! msrv_aliases {
 
 // names may refer to stabilized feature flags or library items
 msrv_aliases! {
+    1,95,0 { VEC_POP_IF, VEC_DEQUE_POP_BACK_IF, VEC_DEQUE_POP_FRONT_IF }
     1,91,0 { DURATION_FROM_MINUTES_HOURS }
     1,88,0 { LET_CHAINS }
     1,87,0 { OS_STR_DISPLAY, INT_MIDPOINT, CONST_CHAR_IS_DIGIT, UNSIGNED_IS_MULTIPLE_OF, INTEGER_SIGN_CAST }

@@ -277,6 +277,7 @@ generate! {
     peek,
     peek_mut,
     peekable,
+    pop_if,
     pow,
     powf,
     powi,

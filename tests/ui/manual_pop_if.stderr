@@ -1,0 +1,185 @@
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:15:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x > 3) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 3);`
+   |
+   = note: `-D clippy::manual-pop-if` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_pop_if)]`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:21:5
+   |
+LL | /     if vec.last().is_some_and(|y| *y == 5) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|y| *y == 5);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:27:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x > 2 && *x < 10) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 2 && *x < 10);`
+
+error: manual implementation of `VecDeque::pop_back_if`
+  --> tests/ui/manual_pop_if.rs:47:5
+   |
+LL | /     if deque.back().is_some_and(|x| *x > 3) {
+LL | |
+LL | |         deque.pop_back().unwrap();
+LL | |     }
+   | |_____^ help: try: `deque.pop_back_if(|x| *x > 3);`
+
+error: manual implementation of `VecDeque::pop_back_if`
+  --> tests/ui/manual_pop_if.rs:53:5
+   |
+LL | /     if deque.back().is_some_and(|y| *y == 5) {
+LL | |
+LL | |         deque.pop_back().unwrap();
+LL | |     }
+   | |_____^ help: try: `deque.pop_back_if(|y| *y == 5);`
+
+error: manual implementation of `VecDeque::pop_front_if`
+  --> tests/ui/manual_pop_if.rs:63:5
+   |
+LL | /     if deque.front().is_some_and(|x| *x < 3) {
+LL | |
+LL | |         deque.pop_front().unwrap();
+LL | |     }
+   | |_____^ help: try: `deque.pop_front_if(|x| *x < 3);`
+
+error: manual implementation of `VecDeque::pop_front_if`
+  --> tests/ui/manual_pop_if.rs:69:5
+   |
+LL | /     if deque.front().is_some_and(|y| *y == 1) {
+LL | |
+LL | |         deque.pop_front().unwrap();
+LL | |     }
+   | |_____^ help: try: `deque.pop_front_if(|y| *y == 1);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:192:5
+   |
+LL | /     if vec.last().map(|x| *x > 2).unwrap_or(false) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 2);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:198:5
+   |
+LL | /     if vec.last().map(|y| *y == 3).unwrap_or(false) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|y| *y == 3);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:204:5
+   |
+LL | /     if vec.last().map(|x| *x > 1 && *x < 5).unwrap_or(false) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 1 && *x < 5);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:255:5
+   |
+LL | /     if empty_vec.last().is_some_and(|x| *x > 0) {
+LL | |
+LL | |         empty_vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `empty_vec.pop_if(|x| *x > 0);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:280:5
+   |
+LL | /     if points.last().is_some_and(|p| p.x > 2) {
+LL | |
+LL | |         points.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `points.pop_if(|p| p.x > 2);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:286:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x > 2 && *x < 10 && *x % 2 == 0) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 2 && *x < 10 && *x % 2 == 0);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:292:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x < 2 || *x > 10) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x < 2 || *x > 10);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:346:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x > 3) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 3);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:387:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x > 3) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 3);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:446:5
+   |
+LL | /     if vec.last().map(|x| *x > 2).unwrap_or(false) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 2);`
+
+error: manual implementation of `Vec::pop_if`
+  --> tests/ui/manual_pop_if.rs:490:5
+   |
+LL | /     if vec.last().is_some_and(|x| *x > 3) {
+LL | |
+LL | |         vec.pop().unwrap();
+LL | |     }
+   | |_____^ help: try: `vec.pop_if(|x| *x > 3);`
+
+error: manual implementation of `VecDeque::pop_back_if`
+  --> tests/ui/manual_pop_if.rs:516:5
+   |
+LL | /     if deque.back().is_some_and(|x| *x > 3) {
+LL | |
+LL | |         deque.pop_back().unwrap();
+LL | |     }
+   | |_____^ help: try: `deque.pop_back_if(|x| *x > 3);`
+
+error: manual implementation of `VecDeque::pop_front_if`
+  --> tests/ui/manual_pop_if.rs:522:5
+   |
+LL | /     if deque.front().is_some_and(|x| *x < 3) {
+LL | |
+LL | |         deque.pop_front().unwrap();
+LL | |     }
+   | |_____^ help: try: `deque.pop_front_if(|x| *x < 3);`
+
+error: aborting due to 20 previous errors
+
