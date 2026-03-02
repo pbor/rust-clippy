@@ -20,6 +20,18 @@ impl<T> FakeVec<T> {
 fn is_some_and_pattern_positive(mut vec: Vec<i32>, mut deque: VecDeque<i32>) {
     if vec.last().is_some_and(|x| *x > 2) {
         //~^ manual_pop_if
+        let val = vec.pop().unwrap();
+        println!("Popped: {}", val);
+    }
+
+    if vec.last().is_some_and(|x| *x > 2) {
+        //~^ manual_pop_if
+        let val = vec.pop().expect("element");
+        println!("Popped: {}", val);
+    }
+
+    if vec.last().is_some_and(|x| *x > 2) {
+        //~^ manual_pop_if
         vec.pop().unwrap();
     }
 
@@ -59,13 +71,14 @@ fn is_some_and_pattern_negative(mut vec: Vec<i32>, mut deque: VecDeque<i32>) {
         vec.pop().unwrap();
     }
 
-    // Do not lint, value used in let binding
+    // Do not lint, pop is not the first statement
     if vec.last().is_some_and(|x| *x > 2) {
-        let _value = vec.pop().unwrap();
-        println!("Popped: {}", _value);
+        println!("About to pop");
+        let val = vec.pop().unwrap();
+        println!("Popped: {}", val);
     }
 
-    // Do not lint, value used in expression
+    // Do not lint, pop is within an expression
     if vec.last().is_some_and(|x| *x > 2) {
         println!("Popped: {}", vec.pop().unwrap());
     }
@@ -79,6 +92,22 @@ fn is_some_and_pattern_negative(mut vec: Vec<i32>, mut deque: VecDeque<i32>) {
 }
 
 fn if_let_pattern_positive(mut vec: Vec<i32>, mut deque: VecDeque<i32>) {
+    if let Some(x) = vec.last() {
+        //~^ manual_pop_if
+        if *x > 2 {
+            let val = vec.pop().unwrap();
+            println!("Popped: {}", val);
+        }
+    }
+
+    if let Some(x) = vec.last() {
+        //~^ manual_pop_if
+        if *x > 2 {
+            let val = vec.pop().expect("element");
+            println!("Popped: {}", val);
+        }
+    }
+
     if let Some(x) = vec.last() {
         //~^ manual_pop_if
         if *x > 2 {
@@ -132,10 +161,19 @@ fn if_let_pattern_negative(mut vec: Vec<i32>) {
         }
     }
 
-    // Do not lint, value used in let binding
+    // Do not lint, pop is not the first statement
     if let Some(x) = vec.last() {
         if *x > 2 {
-            let _val = vec.pop().unwrap();
+            println!("About to pop");
+            let val = vec.pop().unwrap();
+            println!("Popped: {}", val);
+        }
+    }
+
+    // Do not lint, pop is within an expression
+    if let Some(x) = vec.last() {
+        if *x > 2 {
+            println!("Popped: {}", vec.pop().unwrap());
         }
     }
 
@@ -148,6 +186,22 @@ fn if_let_pattern_negative(mut vec: Vec<i32>) {
 }
 
 fn let_chain_pattern_positive(mut vec: Vec<i32>, mut deque: VecDeque<i32>) {
+    if let Some(x) = vec.last()
+        //~^ manual_pop_if
+        && *x > 2
+    {
+        let val = vec.pop().unwrap();
+        println!("Popped: {}", val);
+    }
+
+    if let Some(x) = vec.last()
+        //~^ manual_pop_if
+        && *x > 2
+    {
+        let val = vec.pop().expect("element");
+        println!("Popped: {}", val);
+    }
+
     if let Some(x) = vec.last() //~ manual_pop_if
         && *x > 2
     {
@@ -189,14 +243,16 @@ fn let_chain_pattern_negative(mut vec: Vec<i32>) {
         vec.pop().unwrap();
     }
 
-    // Do not lint, value used in let binding
+    // Do not lint, pop is not the first statement
     if let Some(x) = vec.last()
         && *x > 2
     {
-        let _val = vec.pop().unwrap();
+        println!("About to pop");
+        let val = vec.pop().unwrap();
+        println!("Popped: {}", val);
     }
 
-    // Do not lint, value used in expression
+    // Do not lint, pop is within an expression
     if let Some(x) = vec.last()
         && *x > 2
     {
@@ -214,6 +270,18 @@ fn let_chain_pattern_negative(mut vec: Vec<i32>) {
 }
 
 fn map_unwrap_or_pattern_positive(mut vec: Vec<i32>, mut deque: VecDeque<i32>) {
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        //~^ manual_pop_if
+        let val = vec.pop().unwrap();
+        println!("Popped: {}", val);
+    }
+
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        //~^ manual_pop_if
+        let val = vec.pop().expect("element");
+        println!("Popped: {}", val);
+    }
+
     if vec.last().map(|x| *x > 2).unwrap_or(false) {
         //~^ manual_pop_if
         vec.pop().unwrap();
@@ -258,9 +326,16 @@ fn map_unwrap_or_pattern_negative(mut vec: Vec<i32>) {
         vec.pop().unwrap();
     }
 
-    // Do not lint, value used in let binding
+    // Do not lint, let binding is not the first statement
     if vec.last().map(|x| *x > 2).unwrap_or(false) {
-        let _val = vec.pop().unwrap();
+        println!("About to pop");
+        let val = vec.pop().unwrap();
+        println!("Popped: {}", val);
+    }
+
+    // Do not lint, pop is within an expression
+    if vec.last().map(|x| *x > 2).unwrap_or(false) {
+        println!("Popped: {}", vec.pop().unwrap());
     }
 
     // Do not lint, else block

@@ -2,9 +2,9 @@ use clippy_config::Conf;
 use clippy_utils::diagnostics::span_lint_and_sugg;
 use clippy_utils::msrvs::{self, Msrv};
 use clippy_utils::res::MaybeDef;
-use clippy_utils::source::snippet_with_context;
+use clippy_utils::source::{indent_of, reindent_multiline, snippet_with_context};
 use clippy_utils::visitors::is_local_used;
-use clippy_utils::{eq_expr_value, is_else_clause, is_lang_item_or_ctor, peel_blocks_with_stmt, sym};
+use clippy_utils::{eq_expr_value, is_else_clause, is_lang_item_or_ctor, sym};
 use rustc_ast::LitKind;
 use rustc_errors::Applicability;
 use rustc_hir::{Expr, ExprKind, LangItem, PatKind, RustcVersion, StmtKind};
@@ -21,11 +21,15 @@ declare_clippy_lint! {
     /// Using `pop_if` is more concise and idiomatic.
     ///
     /// ### Known issues
-    /// Currently, the lint does not handle the case where the
-    /// `if` condition is part of an `else if` branch.
+    /// The lint handles the case where the popped value is
+    /// not used and the case where it is bound to a variable
+    /// as the very first statement within the `if`. It does
+    /// not handle more complex cases, for instance if the
+    /// value is popped directly within an expression without
+    /// a let binding.
     ///
-    /// The lint also does not handle the case where
-    /// the popped value is assigned and used.
+    /// The lint also does not handle the case where the
+    /// `if` condition is part of an `else if` branch.
     ///
     /// ### Examples
     /// ```no_run
@@ -33,13 +37,16 @@ declare_clippy_lint! {
     /// # let mut vec = vec![1, 2, 3, 4, 5];
     /// # let mut deque: VecDeque<i32> = VecDeque::from([1, 2, 3, 4, 5]);
     /// if vec.last().is_some_and(|x| *x > 5) {
-    ///     vec.pop().unwrap();
+    ///     let value = vec.pop().unwrap();
+    ///     println!("Popped: {value}");
     /// }
     /// if deque.back().is_some_and(|x| *x > 5) {
-    ///     deque.pop_back().unwrap();
+    ///     let value = deque.pop_back().unwrap();
+    ///     println!("Popped: {value}");
     /// }
     /// if deque.front().is_some_and(|x| *x > 5) {
-    ///     deque.pop_front().unwrap();
+    ///     let value = deque.pop_front().unwrap();
+    ///     println!("Popped: {value}");
     /// }
     /// ```
     /// Use instead:
@@ -47,9 +54,15 @@ declare_clippy_lint! {
     /// # use std::collections::VecDeque;
     /// # let mut vec = vec![1, 2, 3, 4, 5];
     /// # let mut deque: VecDeque<i32> = VecDeque::from([1, 2, 3, 4, 5]);
-    /// vec.pop_if(|x| *x > 5);
-    /// deque.pop_back_if(|x| *x > 5);
-    /// deque.pop_front_if(|x| *x > 5);
+    /// if let Some(value) = vec.pop_if(|x| *x > 5) {
+    ///     println!("Popped: {value}");
+    /// };
+    /// if let Some(value) = deque.pop_back_if(|x| *x > 5) {
+    ///     println!("Popped: {value}");
+    /// };
+    /// if let Some(value) = deque.pop_front_if(|x| *x > 5) {
+    ///     println!("Popped: {value}");
+    /// };
     /// ```
     #[clippy::version = "1.95.0"]
     pub MANUAL_POP_IF,
@@ -143,6 +156,12 @@ struct ManualPopIfPattern<'tcx> {
 
     /// Span of the if expression (including the `if` keyword)
     if_span: Span,
+
+    /// The variable name if the pop value is bound to a variable
+    let_binding_name: Option<Symbol>,
+
+    /// The then block expression
+    then_block: &'tcx Expr<'tcx>,
 }
 
 impl ManualPopIfPattern<'_> {
@@ -154,7 +173,14 @@ impl ManualPopIfPattern<'_> {
         let param_name = self.param_name;
         let pop_if_method = self.kind.pop_if_method();
 
-        let suggestion = format!("{collection_snippet}.{pop_if_method}(|{param_name}| {predicate_snippet});");
+        let suggestion = if self.let_binding_name.is_some() {
+            let body = self.build_if_let_body(cx, ctxt, &mut app);
+            format!(
+                "if let Some({param_name}) = {collection_snippet}.{pop_if_method}(|{param_name}| {predicate_snippet}) {body}"
+            )
+        } else {
+            format!("{collection_snippet}.{pop_if_method}(|{param_name}| {predicate_snippet});")
+        };
 
         span_lint_and_sugg(
             cx,
@@ -166,22 +192,99 @@ impl ManualPopIfPattern<'_> {
             app,
         );
     }
+
+    fn build_if_let_body(
+        &self,
+        cx: &LateContext<'_>,
+        ctxt: rustc_span::SyntaxContext,
+        app: &mut Applicability,
+    ) -> String {
+        let ExprKind::Block(block, _) = self.then_block.kind else {
+            return String::new();
+        };
+
+        let param_name = self.param_name.to_string();
+        let let_binding_name = self.let_binding_name.map(|s| s.to_string());
+
+        let mut transformed_stmts = Vec::new();
+
+        // Skip the first statement, which is the let binding with pop
+        for stmt in block.stmts.iter().skip(1) {
+            let stmt_snippet = snippet_with_context(cx, stmt.span, ctxt, "..", app).0;
+            let transformed = if let Some(ref var_name) = let_binding_name {
+                stmt_snippet.replace(var_name, &param_name)
+            } else {
+                stmt_snippet.to_string()
+            };
+            transformed_stmts.push(transformed);
+        }
+
+        if let Some(expr) = block.expr {
+            let expr_snippet = snippet_with_context(cx, expr.span, ctxt, "..", app).0;
+            let transformed = if let Some(ref var_name) = let_binding_name {
+                expr_snippet.replace(var_name, &param_name)
+            } else {
+                expr_snippet.to_string()
+            };
+            transformed_stmts.push(transformed);
+        }
+
+        if transformed_stmts.is_empty() {
+            " {}".to_string()
+        } else {
+            let body = transformed_stmts.join("\n");
+            let base_indent = indent_of(cx, self.if_span).unwrap_or(0);
+            let block_indent = base_indent + 4;
+            let reindented_body = reindent_multiline(&body, false, Some(block_indent));
+            format!(" {{\n{}\n{}}}", reindented_body, " ".repeat(base_indent))
+        }
+    }
 }
 
-fn pop_value_is_used(then_block: &Expr<'_>) -> bool {
-    let ExprKind::Block(block, _) = then_block.kind else {
-        return true;
+/// Checks for `collection.<pop_method>().unwrap()` or `collection.<pop_method>().expect(..)`
+/// as the first statement in the block. Returns the collection expression and optionally
+/// the variable name if the pop is in a let binding.
+///
+/// Matches if the pop is either:
+/// 1. The only statement (not embedded in a macro or other expression)
+/// 2. A let binding as the first statement
+fn check_pop_unwrap<'tcx>(expr: &'tcx Expr<'_>, pop_method: Symbol) -> Option<(&'tcx Expr<'tcx>, Option<Symbol>)> {
+    let ExprKind::Block(block, _) = expr.kind else {
+        return None;
     };
 
-    if block.expr.is_some() {
-        return true;
+    let first_stmt = block.stmts.first()?;
+
+    // Check if the first statement is a let binding with pop call
+    if let StmtKind::Let(local) = &first_stmt.kind
+        && let Some(init) = local.init
+        && let ExprKind::MethodCall(unwrap_path, receiver, _, _) = init.kind
+        && matches!(unwrap_path.ident.name, sym::unwrap | sym::expect)
+        && let ExprKind::MethodCall(pop_path, collection_expr, [], _) = receiver.kind
+        && pop_path.ident.name == pop_method
+    {
+        let let_binding_name = if let PatKind::Binding(_, _, ident, _) = local.pat.kind {
+            Some(ident.name)
+        } else {
+            None
+        };
+        return Some((collection_expr, let_binding_name));
     }
 
-    match block.stmts {
-        [stmt] => !matches!(stmt.kind, StmtKind::Semi(_) | StmtKind::Item(_)),
-        [.., last] => matches!(last.kind, StmtKind::Expr(_)),
-        [] => false,
+    // Check for single statement with the pop call (not in a macro or other expression)
+    if let [_] = block.stmts
+        && block.expr.is_none()
+        && let StmtKind::Semi(stmt_expr) | StmtKind::Expr(stmt_expr) = &first_stmt.kind
+        && let ExprKind::MethodCall(unwrap_path, receiver, _, _) = stmt_expr.kind
+        && matches!(unwrap_path.ident.name, sym::unwrap | sym::expect)
+        && let ExprKind::MethodCall(pop_path, collection_expr, [], _) = receiver.kind
+        && pop_path.ident.name == pop_method
+        && !stmt_expr.span.from_expansion()
+    {
+        return Some((collection_expr, None));
     }
+
+    None
 }
 
 /// Checks for the pattern:
@@ -197,10 +300,6 @@ fn check_is_some_and_pattern<'tcx>(
     if_expr_span: Span,
     kind: ManualPopIfKind,
 ) -> Option<ManualPopIfPattern<'tcx>> {
-    if pop_value_is_used(then_block) {
-        return None;
-    }
-
     let check_method = kind.check_method();
     let pop_method = kind.pop_method();
 
@@ -211,7 +310,7 @@ fn check_is_some_and_pattern<'tcx>(
         && kind.is_diag_item(cx, collection_expr)
         && let ExprKind::Closure(closure) = closure_arg.kind
         && let body = cx.tcx.hir_body(closure.body)
-        && let Some((pop_collection, _pop_span)) = check_pop_unwrap(then_block, pop_method)
+        && let Some((pop_collection, let_binding_name)) = check_pop_unwrap(then_block, pop_method)
         && eq_expr_value(cx, collection_expr, pop_collection)
         && let Some(param) = body.params.first()
         && let Some(ident) = param.pat.simple_ident()
@@ -222,6 +321,8 @@ fn check_is_some_and_pattern<'tcx>(
             predicate: body.value,
             param_name: ident.name,
             if_span: if_expr_span,
+            let_binding_name,
+            then_block,
         });
     }
 
@@ -271,8 +372,7 @@ fn check_if_let_pattern<'tcx>(
 
             if let ExprKind::If(inner_cond, inner_then, None) = inner_if.kind
                 && is_local_used(cx, inner_cond, binding_id)
-                && !pop_value_is_used(inner_then)
-                && let Some((pop_collection, _pop_span)) = check_pop_unwrap(inner_then, pop_method)
+                && let Some((pop_collection, let_binding_name)) = check_pop_unwrap(inner_then, pop_method)
                 && eq_expr_value(cx, collection_expr, pop_collection)
             {
                 return Some(ManualPopIfPattern {
@@ -281,6 +381,8 @@ fn check_if_let_pattern<'tcx>(
                     predicate: inner_cond,
                     param_name: binding_name.name,
                     if_span: if_expr_span,
+                    let_binding_name,
+                    then_block: inner_then,
                 });
             }
         }
@@ -302,10 +404,6 @@ fn check_let_chain_pattern<'tcx>(
     if_expr_span: Span,
     kind: ManualPopIfKind,
 ) -> Option<ManualPopIfPattern<'tcx>> {
-    if pop_value_is_used(then_block) {
-        return None;
-    }
-
     let check_method = kind.check_method();
     let pop_method = kind.pop_method();
 
@@ -323,8 +421,7 @@ fn check_let_chain_pattern<'tcx>(
             && path.ident.name == check_method
             && kind.is_diag_item(cx, collection_expr)
             && is_local_used(cx, right, binding_id)
-            && !pop_value_is_used(then_block)
-            && let Some((pop_collection, _pop_span)) = check_pop_unwrap(then_block, pop_method)
+            && let Some((pop_collection, let_binding_name)) = check_pop_unwrap(then_block, pop_method)
             && eq_expr_value(cx, collection_expr, pop_collection)
         {
             return Some(ManualPopIfPattern {
@@ -333,6 +430,8 @@ fn check_let_chain_pattern<'tcx>(
                 predicate: right,
                 param_name: binding_name.name,
                 if_span: if_expr_span,
+                let_binding_name,
+                then_block,
             });
         }
     }
@@ -353,10 +452,6 @@ fn check_map_unwrap_or_pattern<'tcx>(
     if_expr_span: Span,
     kind: ManualPopIfKind,
 ) -> Option<ManualPopIfPattern<'tcx>> {
-    if pop_value_is_used(then_block) {
-        return None;
-    }
-
     let check_method = kind.check_method();
     let pop_method = kind.pop_method();
 
@@ -371,7 +466,7 @@ fn check_map_unwrap_or_pattern<'tcx>(
         && let ExprKind::Closure(closure) = closure_arg.kind
         && let body = cx.tcx.hir_body(closure.body)
         && cx.typeck_results().expr_ty(body.value).is_bool()
-        && let Some((pop_collection, _pop_span)) = check_pop_unwrap(then_block, pop_method)
+        && let Some((pop_collection, let_binding_name)) = check_pop_unwrap(then_block, pop_method)
         && eq_expr_value(cx, collection_expr, pop_collection)
         && let Some(param) = body.params.first()
         && let Some(ident) = param.pat.simple_ident()
@@ -382,23 +477,9 @@ fn check_map_unwrap_or_pattern<'tcx>(
             predicate: body.value,
             param_name: ident.name,
             if_span: if_expr_span,
+            let_binding_name,
+            then_block,
         });
-    }
-
-    None
-}
-
-/// Checks for `collection.<pop_method>().unwrap()` or `collection.<pop_method>().expect(..)`
-/// and returns the collection and the span of the peeled expr
-fn check_pop_unwrap<'tcx>(expr: &'tcx Expr<'_>, pop_method: Symbol) -> Option<(&'tcx Expr<'tcx>, Span)> {
-    let inner_expr = peel_blocks_with_stmt(expr);
-
-    if let ExprKind::MethodCall(unwrap_path, receiver, _, _) = inner_expr.kind
-        && matches!(unwrap_path.ident.name, sym::unwrap | sym::expect)
-        && let ExprKind::MethodCall(pop_path, collection_expr, [], _) = receiver.kind
-        && pop_path.ident.name == pop_method
-    {
-        return Some((collection_expr, inner_expr.span));
     }
 
     None
